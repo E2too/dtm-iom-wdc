@@ -18,9 +18,16 @@
     <button onclick="fetchData()">Get Country Data</button>
 
     <script>
+        // Ensure Tableau WDC is properly initialized
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof tableau !== "undefined" && tableau.init) {
+                tableau.init();
+            }
+        });
+
         let countrySelect = document.getElementById('countrySelect');
 
-        // Load countries
+        // Load countries from proxy
         fetch('http://localhost:5050/proxy/countries')
             .then(response => response.json())
             .then(data => {
@@ -83,6 +90,5 @@
             tableau.submit();
         }
     </script>
-
 
 </body></html>
