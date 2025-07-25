@@ -15,20 +15,14 @@
     <select id="countrySelect">
         <option>-- Loading countries... --</option>
     </select>
-    <button onclick="fetchData()">Get Country Data</button>
+    <button id="getDataButton">Get Country Data</button>
 
     <script>
-        // Ensure Tableau WDC is properly initialized
-        document.addEventListener('DOMContentLoaded', function () {
-            if (typeof tableau !== "undefined" && tableau.init) {
-                tableau.init();
-            }
-        });
-
-        let countrySelect = document.getElementById('countrySelect');
+        const countrySelect = document.getElementById('countrySelect');
+        const getDataButton = document.getElementById('getDataButton');
 
         // Load countries from proxy
-        fetch('http://localhost:5050/proxy/countries')
+        fetch('https://e2too.github.io/dtm-iom-wdc/countries.json')
             .then(response => response.json())
             .then(data => {
                 countrySelect.innerHTML = '';
@@ -44,51 +38,53 @@
                 console.error(err);
             });
 
-        function fetchData() {
-            let selectedCountry = countrySelect.value;
+        // Define connector logic
+        const myConnector = tableau.makeConnector();
+
+        myConnector.getSchema = function (schemaCallback) {
+            const cols = [
+                { id: "Country", dataType: tableau.dataTypeEnum.string },
+                { id: "Indicator", dataType: tableau.dataTypeEnum.string },
+                { id: "Value", dataType: tableau.dataTypeEnum.float }
+            ];
+            schemaCallback([{ id: "DTM_IDP_Admin0", alias: "DTM IDP Admin0 Data", columns: cols }]);
+        };
+
+        myConnector.getData = function (table, doneCallback) {
+            const countryName = tableau.connectionData;
+            const apiURL = `https://your-proxy-service.com/proxy/idpdata?countryName=${encodeURIComponent(countryName)}`;
+
+            fetch(apiURL)
+                .then(response => response.json())
+                .then(data => {
+                    const rows = data.map(item => ({
+                        Country: item.CountryName,
+                        Indicator: item.Indicator || '',
+                        Value: item.Value || 0
+                    }));
+                    table.appendRows(rows);
+                    doneCallback();
+                })
+                .catch(error => {
+                    console.error('Error fetching IDP data:', error);
+                    doneCallback();
+                });
+        };
+
+        tableau.registerConnector(myConnector);
+
+        // Trigger data fetch
+        getDataButton.addEventListener('click', () => {
+            const selectedCountry = countrySelect.value;
             if (!selectedCountry) {
                 alert("Please select a country");
                 return;
             }
-
-            let myConnector = tableau.makeConnector();
-
-            myConnector.getSchema = function (schemaCallback) {
-                const cols = [
-                    { id: "Country", dataType: tableau.dataTypeEnum.string },
-                    { id: "Indicator", dataType: tableau.dataTypeEnum.string },
-                    { id: "Value", dataType: tableau.dataTypeEnum.float }
-                ];
-                const tableSchema = {
-                    id: "DTM_IDP_Admin0",
-                    alias: "DTM IDP Admin0 Data",
-                    columns: cols
-                };
-                schemaCallback([tableSchema]);
-            };
-
-            myConnector.getData = function (table, doneCallback) {
-                fetch(`http://localhost:5050/proxy/idpdata?countryName=${encodeURIComponent(selectedCountry)}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const tableData = data.map(item => ({
-                            Country: item.CountryName,
-                            Indicator: item.Indicator || '',
-                            Value: item.Value || 0
-                        }));
-                        table.appendRows(tableData);
-                        doneCallback();
-                    })
-                    .catch(error => {
-                        console.error('Error fetching IDP data:', error);
-                        doneCallback();
-                    });
-            };
-
-            tableau.registerConnector(myConnector);
+            tableau.connectionData = selectedCountry;
             tableau.connectionName = `DTM Admin0 for ${selectedCountry}`;
             tableau.submit();
-        }
+        });
     </script>
+
 
 </body></html>
